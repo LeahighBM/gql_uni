@@ -5,7 +5,7 @@ from uni_app.schema import schema
 
 # Create your tests here.
 
-class StudentQueryTests(TestCase):
+class FacultyQueryTests(TestCase):
     def setUp(self):
         Faculty.objects.create(fname="Bob",
                                lname="Bobson",
