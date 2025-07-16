@@ -102,6 +102,40 @@ class DeleteStudent(graphene.Mutation):
             return DeleteStudent(ok=True)
         except Student.DoesNotExist:
             raise Exception(f"Student with id {id} does not exist")
+        
+class CreateFaculty(graphene.Mutation):
+    class Arguments:
+        fname      = graphene.String(required=True)
+        lname      = graphene.String(required=True)
+        department = graphene.String(required=True)
+
+    faculty = graphene.Field(FacultyType)
+
+    def mutate(self, info, fname, lname, department):
+        faculty = Faculty(fname=fname, lname=lname, department=department)
+        faculty.save() 
+
+        return CreateFaculty(faculty=faculty)
+    
+
+class CreateCourse(graphene.Mutation):
+    class Arguments:
+        name        = graphene.String(required=True)
+        course_id   = graphene.String(required=True)
+        description = graphene.String(required=True)
+        instructor  = graphene.ID(required=True)
+
+    course = graphene.Field(CourseType)
+
+    def mutate(self, info, name, course_id, description, instructor):
+        instructor = Faculty.objects.get(pk=instructor)
+        course = Course(name=name, 
+                        course_id=course_id, 
+                        description=description, 
+                        instructor=instructor)
+        course.save()
+
+        return CreateCourse(course=course)
 
 
 class StudentQueries(graphene.ObjectType):
@@ -112,7 +146,11 @@ class StudentQueries(graphene.ObjectType):
     num_students_by_year  = graphene.List(YearCountType)
     num_students_by_major = graphene.List(MajorCountType)
     avg_gpa_by_year  = graphene.List(YearAvgGpaType)
+    avg_gpa_by_year_single = graphene.Field(
+        YearAvgGpaType, 
+        year=graphene.String(required=True))
     avg_gpa_by_major = graphene.List(MajorAvgGpaType)
+
 
     def resolve_students(self, info):
         return Student.objects.all()
@@ -127,47 +165,91 @@ class StudentQueries(graphene.ObjectType):
         return Student.objects.count()
     
     def resolve_num_students_by_year(self, info):
-        aggregate = Student.objects.values('year').annotate(count=Count('id'))
+        ann = Student.objects.values('year').annotate(count=Count('id'))
 
         return [
             YearCountType(year=item['year'], count=item['count'])
-            for item in aggregate
+            for item in ann
         ]
     
     def resolve_num_students_by_major(self, info):
-        aggregate = Student.objects.values('major').annotate(count=Count("id"))
+        ann = Student.objects.values('major').annotate(count=Count("id"))
 
         return [
             MajorCountType(major=item['major'], count=item['count'])
-            for item in aggregate
+            for item in ann
         ]
     
     def resolve_avg_gpa_by_year(self, info):
-        aggregate = Student.objects.values('year').annotate(avg=Avg('gpa'))
+        ann = Student.objects.values('year').annotate(avg=Avg('gpa'))
 
         return [
             YearAvgGpaType(year=item['year'], avg_gpa=item['avg'])
-            for item in aggregate
+            for item in ann
         ]
     
+    def resolve_avg_gpa_by_year_single(self, info, year):
+        agg = Student.objects.filter(year=year).aggregate(
+            avg=Avg('gpa')
+        )
+
+        return YearAvgGpaType(year=year, avg_gpa=agg['avg'])
+
     def resolve_avg_gpa_by_major(self, info):
-        aggregate = Student.objects.values('major').annotate(avg=Avg('gpa'))
+        ann = Student.objects.values('major').annotate(avg=Avg('gpa'))
 
         return [
             MajorAvgGpaType(major=item['major'], avg_gpa=item['avg'])
-            for item in aggregate
+            for item in ann
         ]
+    
+
+class FacultyQueries(graphene.ObjectType):
+    all_faculty    = graphene.List(FacultyType)
+    faculty_single = graphene.Field(FacultyType,id=graphene.ID(required=True))
+
+    def resolve_all_faculty(self, info):
+        return Faculty.objects.all()
+
+    def resolve_faculty_single(self, info, id):
+        try:
+            return Faculty.objects.get(pk=id)
+        except Faculty.DoesNotExist:
+            raise Exception("Faculty ID does not exist")
+        
+
+class CourseQueries(graphene.ObjectType):
+    courses = graphene.List(CourseType)
+    course  = graphene.Field(CourseType, id=graphene.ID(required=True))
+
+    def resolve_courses(self, info):
+        return Course.objects.all()
+    
+    def resolve_course(self, info, id):
+        try:
+            return Course.objects.get(pk=id)
+        except Course.DoesNotExist:
+            raise Exception("Course ID does not exist")
+
 
 class StudentMutations(graphene.ObjectType):
     create_student = CreateStudent.Field()
     update_student = UpdateStudent.Field()
     delete_student = DeleteStudent.Field()
+
+
+class FacultyMutations(graphene.ObjectType):
+    create_faculty = CreateFaculty.Field()
+
+
+class CourseMutations(graphene.ObjectType):
+    create_course = CreateCourse.Field()
     
 
-class Query(StudentQueries, graphene.ObjectType):
+class Query(StudentQueries, FacultyQueries, CourseQueries, graphene.ObjectType):
     pass
 
-class Mutation(StudentMutations, graphene.ObjectType):
+class Mutation(StudentMutations, FacultyMutations, CourseMutations, graphene.ObjectType):
     pass
 
 
