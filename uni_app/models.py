@@ -30,3 +30,11 @@ class Course(models.Model):
 
     def __str__(self): 
         return self.name
+    
+
+class Enrollment(models.Model):
+    course_id  = models.ForeignKey(Course,  on_delete=models.CASCADE)
+    student_id = models.ForeignKey(Student, on_delete=models.CASCADE)
+
+    def __str__(self):
+        return self.course_id

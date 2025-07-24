@@ -1,6 +1,6 @@
 import graphene
 from graphene_django import DjangoObjectType
-from uni_app.models import Student, Faculty, Course
+from uni_app.models import Student, Faculty, Course, Enrollment
 from django.db.models import Count, Avg
 
 class StudentType(DjangoObjectType):
@@ -18,6 +18,12 @@ class FacultyType(DjangoObjectType):
 class CourseType(DjangoObjectType):
     class Meta:
         model = Course
+        fields = "__all__"
+
+
+class EnrollmentType(DjangoObjectType):
+    class Meta:
+        model = Enrollment
         fields = "__all__"
 
 
@@ -136,6 +142,30 @@ class CreateCourse(graphene.Mutation):
         course.save()
 
         return CreateCourse(course=course)
+    
+
+class EnrollStudentInCourse(graphene.Mutation):
+    class Arguments:
+        course_id  = graphene.ID(required=True)
+        student_id = graphene.ID(required=True)
+
+    ok = graphene.Boolean()
+    enrollment = graphene.Field(EnrollmentType)
+
+    def mutate(self, info, course_id, student_id):
+        try:
+            student = Student.objects.get(pk=student_id)
+            course  = Course.objects.get(pk=course_id)
+        except Student.DoesNotExist:
+            raise Exception(f"Student with ID {student_id} does not exist.")
+        except Course.DoesNotExist:
+            raise Exception(f"Course with ID {course_id} does not exist.")
+        
+        enrollment = Enrollment(course_id=course, student_id=student)
+        enrollment.save()
+
+        return EnrollStudentInCourse(enrollment=enrollment, ok=True)
+        
 
 
 class StudentQueries(graphene.ObjectType):
@@ -232,6 +262,13 @@ class CourseQueries(graphene.ObjectType):
             raise Exception("Course ID does not exist")
 
 
+class EnrollmentQueries(graphene.ObjectType):
+    enrollment = graphene.List(EnrollmentType)
+
+    def resolve_enrollment(self, info):
+        return Enrollment.objects.all()
+
+
 class StudentMutations(graphene.ObjectType):
     create_student = CreateStudent.Field()
     update_student = UpdateStudent.Field()
@@ -244,12 +281,16 @@ class FacultyMutations(graphene.ObjectType):
 
 class CourseMutations(graphene.ObjectType):
     create_course = CreateCourse.Field()
+
+
+class EnrollmentMutations(graphene.ObjectType):
+    enroll_student = EnrollStudentInCourse.Field()
     
 
-class Query(StudentQueries, FacultyQueries, CourseQueries, graphene.ObjectType):
+class Query(StudentQueries, FacultyQueries, CourseQueries, EnrollmentQueries, graphene.ObjectType):
     pass
 
-class Mutation(StudentMutations, FacultyMutations, CourseMutations, graphene.ObjectType):
+class Mutation(StudentMutations, FacultyMutations, CourseMutations, EnrollmentMutations, graphene.ObjectType):
     pass
 
 
